@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,14 +9,37 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from 'next/navigation';
 import { Spacer } from '@/components/ui/spacer';
+import logo from '@/assets/images/NeuroAccess_logo.png';
 
 export default function UploadPage() {
   const [images, setImages] = useState<string[]>([]);
   const [chatEnabled, setChatEnabled] = useState(false);
-  const [prompt, setPrompt] = useState("");
-  const [response, setResponse] = useState("");
+  const [prompt, setPrompt] = useState<string>(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('promptText') || "";
+    }
+    return "";
+  });
+  const [response, setResponse] = useState<string>(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('chatResponse') || "";
+    }
+    return "";
+  });
   const { toast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    localStorage.setItem('uploadedImages', JSON.stringify(images));
+  }, [images]);
+
+  useEffect(() => {
+    localStorage.setItem('promptText', prompt);
+  }, [prompt]);
+
+  useEffect(() => {
+    localStorage.setItem('chatResponse', response);
+  }, [response]);
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files) {
@@ -57,12 +80,19 @@ export default function UploadPage() {
   };
 
   const handleChatSubmit = async () => {
-    // implement the logic to interact with the Gemini API here
-    setResponse(`Response to prompt: ${prompt} for uploaded images.`);
+    const newResponse = `Response to prompt: ${prompt}`;
+    setResponse(newResponse);
   };
 
+  const deleteImage = (index: number) => {
+    setImages((prevImages) => {
+        const newImages = [...prevImages];
+        newImages.splice(index, 1);
+        return newImages;
+    });
+};
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8">
+    <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
       <Tabs defaultValue="upload" className="w-full max-w-2xl mb-8">
         <TabsList>
           <TabsTrigger value="upload">Upload Images</TabsTrigger>
@@ -71,12 +101,11 @@ export default function UploadPage() {
 
         <Spacer axis="vertical" size={50} />
 
-        <TabsContent value="upload" className="focus:outline-none">
-          <h1 className="text-4xl font-bold mb-4">Upload MRI Scans!</h1>
+          <h1 className="text-4xl font-bold mb-4">NeuroScan Upload</h1>
 
           <Spacer axis="vertical" size={16} />
 
-          <p className="text-lg mb-8">Upload neuro-oncology images to interact with the AI-powered chatbot</p>
+          <p className="text-lg mb-8">Upload MRI scans to interact with the AI-powered chatbot</p>
 
           <div className="mb-8">
             <Input
@@ -88,7 +117,17 @@ export default function UploadPage() {
             />
             <div className="flex flex-wrap gap-4">
               {images.map((image, index) => (
-                <img key={index} src={image} alt={`Uploaded Image ${index + 1}`} className="w-32 h-32 object-cover rounded-md shadow-md" />
+                <div key={index} className="relative">
+                    <img src={image} alt={`Uploaded Image ${index + 1}`} className="w-32 h-32 object-cover rounded-md shadow-md" />
+                    <Button
+                      onClick={() => deleteImage(index)}
+                      variant="ghost"
+                      className="absolute top-0 right-0 p-1 text-white rounded-full hover:bg-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                      aria-label="Delete Image"
+                    >
+                      X
+                    </Button>
+                </div>
               ))}
             </div>
           </div>
@@ -100,7 +139,6 @@ export default function UploadPage() {
           >
             {chatEnabled ? "Processed" : "Submit Images"}
           </Button>
-        </TabsContent>
       </Tabs>
 
       {chatEnabled && (
@@ -131,7 +169,8 @@ export default function UploadPage() {
           </CardContent>
         </Card>
       )}
+
+      <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
     </div>
   );
 }
-

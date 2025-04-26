@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   },
   output: 'export',
   experimental: {
-    outputFileTracing: false,
+    allowedDevOrigins: ["9003-idx-studio-1745682676222.cluster-ux5mmlia3zhhask7riihruxydo.cloudworkstations.dev"],
   },
 };
 
