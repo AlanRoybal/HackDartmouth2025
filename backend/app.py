@@ -6,6 +6,10 @@ from pathlib import Path
 import google.generativeai as genai
 import json
 import re
+from datetime import datetime
+import boto3
+from botocore.exceptions import NoCredentialsError
+import shutil
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -49,17 +53,14 @@ def wait_for_files_active(files):
     print()
 
 def process_mri_scan(image_path, model):
-    """Process a single MRI scan and return its analysis as JSON"""
+    """Process a single MRI scan and upload results to S3 with timestamp folder."""
     try:
-        # Validate that the file exists
         if not Path(image_path).exists():
             return {"error": f"Image file {image_path} not found."}
 
-        # Upload and process MRI image
         image_file = upload_to_gemini(str(image_path), mime_type="image/jpeg")
         wait_for_files_active([image_file])
 
-        # Start chat and send single prompt
         chat = model.start_chat()
         prompt = """
         Please analyze this MRI brain scan image and provide:
@@ -75,16 +76,60 @@ def process_mri_scan(image_path, model):
         response = chat.send_message([image_file, prompt])
         raw_text = response.text.strip()
 
-        # Remove ```json ... ``` or ``` ... ```
         cleaned_text = re.sub(r"^```(?:json)?\n", "", raw_text)
         cleaned_text = re.sub(r"\n```$", "", cleaned_text)
 
-        # Try parsing the cleaned text
         try:
             analysis_json = json.loads(cleaned_text)
-            return analysis_json
+
+            # Timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            folder_name = f"saved/{timestamp}/"  # S3 folder
+
+            # Prepare filenames
+            json_filename = f"{folder_name}context_{timestamp}.json"
+            image_extension = Path(image_path).suffix
+            image_filename = f"{folder_name}mri_{timestamp}{image_extension}"
+
+            # Initialize boto3 S3 client
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
+                aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
+                region_name=os.environ['AWS_REGION']
+            )
+            bucket_name = os.environ['S3_BUCKET_NAME']
+
+            # Upload JSON
+            s3.put_object(
+                Bucket=bucket_name,
+                Key=json_filename,
+                Body=json.dumps(analysis_json, indent=4),
+                ContentType='application/json'
+            )
+            print(f"Uploaded {json_filename} to S3.")
+
+            # Upload MRI image
+            with open(image_path, 'rb') as image_file_data:
+                s3.put_object(
+                    Bucket=bucket_name,
+                    Key=image_filename,
+                    Body=image_file_data,
+                    ContentType='image/jpeg'
+                )
+            print(f"Uploaded {image_filename} to S3.")
+
+            return {
+                "message": "Files uploaded successfully",
+                "json_file": json_filename,
+                "image_file": image_filename
+            }
+
         except json.JSONDecodeError:
             return {"error": "Failed to parse the model's response as JSON.", "raw_response": raw_text}
+
+    except NoCredentialsError:
+        return {"error": "AWS credentials not found."}
 
     except Exception as e:
         return {"error": f"Error processing {Path(image_path).name}: {str(e)}"}
