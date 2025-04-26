@@ -58,20 +58,57 @@ export default function UploadPage() {
     reader.readAsDataURL(file);
   }, []);
 
-
-
   const handleSubmit = async () => {
-    if (images.length === 0) {
+    if (!image) {
       toast({
         title: "No images uploaded",
         description: "Please upload at least one image to enable the chatbot.",
       });
       return;
     }
-    setChatEnabled(true);
-    toast({
-      title: "You can now interact with the chatbot.",
-    });
+
+    try {
+      // Convert base64 to blob
+      const base64Response = await fetch(image);
+      const blob = await base64Response.blob();
+
+      // Create FormData and append file
+      const formData = new FormData();
+      formData.append('file', blob, 'mri_scan.jpg');
+
+      // Upload to backend
+      const response = await fetch('http://localhost:5000/analyze_mri', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const analysisResult = await response.json();
+      
+      if (analysisResult.error) {
+        throw new Error(analysisResult.error);
+      }
+
+      setChatEnabled(true);
+      toast({
+        title: "Analysis complete",
+        description: "You can now interact with the chatbot.",
+      });
+
+      // Store analysis result
+      localStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error analyzing image",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleChatSubmit = async () => {

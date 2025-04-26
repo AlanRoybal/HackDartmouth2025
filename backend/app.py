@@ -10,6 +10,11 @@ from datetime import datetime
 import boto3
 from botocore.exceptions import NoCredentialsError
 import shutil
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER = '/tmp/uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -147,20 +152,36 @@ model = genai.GenerativeModel(
     generation_config=generation_config,
 )
 
-# API endpoint
+# API endpoints
 @app.route('/analyze_mri', methods=['POST'])
 def analyze_mri():
-    data = request.get_json()
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
 
-    if not data or 'image_path' not in data:
-        return jsonify({"error": "Missing 'image_path' in request"}), 400
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
 
-    image_path = data['image_path']
-    print(f"Received image path: {image_path}")
+        try:
+            analysis_result = process_mri_scan(filepath, model)
+            
+            # Clean up the temporary file
+            os.remove(filepath)
+            
+            return jsonify(analysis_result)
+            
+        except Exception as e:
+            # Clean up on error
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({"error": str(e)}), 500
 
-    analysis_result = process_mri_scan(image_path, model)
-
-    return jsonify(analysis_result)
+    return jsonify({"error": "Failed to process file"}), 400
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -374,7 +374,7 @@ var _s = __turbopack_context__.k.signature();
 ;
 function UploadPage() {
     _s();
-    const [images, setImages] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
+    const [image, setImage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const [chatEnabled, setChatEnabled] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [prompt, setPrompt] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])({
         "UploadPage.useState": ()=>{
@@ -396,10 +396,10 @@ function UploadPage() {
     const router = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"])();
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "UploadPage.useEffect": ()=>{
-            localStorage.setItem('uploadedImages', JSON.stringify(images));
+            localStorage.setItem('uploadedImage', JSON.stringify(image));
         }
     }["UploadPage.useEffect"], [
-        images
+        image
     ]);
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "UploadPage.useEffect": ()=>{
@@ -420,55 +420,68 @@ function UploadPage() {
             if (!event.target.files) {
                 return;
             }
-            const files = event.target.files;
-            const newImages = [];
-            for(let i = 0; i < files.length; i++){
-                const file = files[i];
-                const reader = new FileReader();
-                reader.onload = ({
-                    "UploadPage.useCallback[handleImageUpload]": (e)=>{
-                        if (e.target?.result) {
-                            newImages.push(e.target.result.toString());
-                            if (newImages.length === files.length) {
-                                setImages({
-                                    "UploadPage.useCallback[handleImageUpload]": (prevImages)=>[
-                                            ...prevImages,
-                                            ...newImages
-                                        ]
-                                }["UploadPage.useCallback[handleImageUpload]"]);
-                            }
-                        }
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ({
+                "UploadPage.useCallback[handleImageUpload]": (e)=>{
+                    if (e.target?.result) {
+                        setImage(e.target.result.toString());
                     }
-                })["UploadPage.useCallback[handleImageUpload]"];
-                reader.readAsDataURL(file);
-            }
+                }
+            })["UploadPage.useCallback[handleImageUpload]"];
+            reader.readAsDataURL(file);
         }
     }["UploadPage.useCallback[handleImageUpload]"], []);
     const handleSubmit = async ()=>{
-        if (images.length === 0) {
+        if (!image) {
             toast({
                 title: "No images uploaded",
                 description: "Please upload at least one image to enable the chatbot."
             });
             return;
         }
-        setChatEnabled(true);
-        toast({
-            title: "You can now interact with the chatbot."
-        });
+        try {
+            // Convert base64 to blob
+            const base64Response = await fetch(image);
+            const blob = await base64Response.blob();
+            // Create FormData and append file
+            const formData = new FormData();
+            formData.append('file', blob, 'mri_scan.jpg');
+            // Upload to backend
+            const response = await fetch('http://localhost:5000/analyze_mri', {
+                method: 'POST',
+                body: formData
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const analysisResult = await response.json();
+            if (analysisResult.error) {
+                throw new Error(analysisResult.error);
+            }
+            setChatEnabled(true);
+            toast({
+                title: "Analysis complete",
+                description: "You can now interact with the chatbot."
+            });
+            // Store analysis result
+            localStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+        } catch (error) {
+            console.error('Error:', error);
+            toast({
+                title: "Error analyzing image",
+                description: error instanceof Error ? error.message : "Unknown error occurred",
+                variant: "destructive"
+            });
+        }
     };
     const handleChatSubmit = async ()=>{
         const newResponse = `Response to prompt: ${prompt}`;
         setResponse(newResponse);
     };
-    const deleteImage = (index)=>{
-        setImages((prevImages)=>{
-            const newImages = [
-                ...prevImages
-            ];
-            newImages.splice(index, 1);
-            return newImages;
-        });
+    const deleteImage = ()=>{
+        setImage(null);
     };
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
         className: "flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative",
@@ -484,7 +497,7 @@ function UploadPage() {
                                 children: "Upload Images"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 98,
+                                lineNumber: 127,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["TabsTrigger"], {
@@ -493,13 +506,13 @@ function UploadPage() {
                                 children: "View History"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 99,
+                                lineNumber: 128,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 97,
+                        lineNumber: 126,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$spacer$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Spacer"], {
@@ -507,7 +520,7 @@ function UploadPage() {
                         size: 50
                     }, void 0, false, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 102,
+                        lineNumber: 131,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -515,7 +528,7 @@ function UploadPage() {
                         children: "NeuroScan Upload"
                     }, void 0, false, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 104,
+                        lineNumber: 133,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$spacer$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Spacer"], {
@@ -523,7 +536,7 @@ function UploadPage() {
                         size: 16
                     }, void 0, false, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 106,
+                        lineNumber: 135,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -531,7 +544,7 @@ function UploadPage() {
                         children: "Upload MRI scans to interact with the AI-powered chatbot"
                     }, void 0, false, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 108,
+                        lineNumber: 137,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -539,55 +552,54 @@ function UploadPage() {
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$input$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Input"], {
                                 type: "file",
-                                multiple: true,
                                 accept: "image/*",
                                 onChange: handleImageUpload,
                                 className: "mb-4"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 111,
+                                lineNumber: 140,
                                 columnNumber: 13
                             }, this),
-                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            image && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                 className: "flex flex-wrap gap-4",
-                                children: images.map((image, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "relative",
-                                        children: [
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
-                                                src: image,
-                                                alt: `Uploaded Image ${index + 1}`,
-                                                className: "w-32 h-32 object-cover rounded-md shadow-md"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/upload/page.tsx",
-                                                lineNumber: 121,
-                                                columnNumber: 21
-                                            }, this),
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Button"], {
-                                                onClick: ()=>deleteImage(index),
-                                                variant: "ghost",
-                                                className: "absolute top-0 right-0 p-1 text-white rounded-full hover:bg-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none",
-                                                "aria-label": "Delete Image",
-                                                children: "X"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/upload/page.tsx",
-                                                lineNumber: 122,
-                                                columnNumber: 21
-                                            }, this)
-                                        ]
-                                    }, index, true, {
-                                        fileName: "[project]/src/app/upload/page.tsx",
-                                        lineNumber: 120,
-                                        columnNumber: 17
-                                    }, this))
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    className: "relative",
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                                            src: image,
+                                            alt: "Uploaded Image",
+                                            className: "w-32 h-32 object-cover rounded-md shadow-md"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/upload/page.tsx",
+                                            lineNumber: 150,
+                                            columnNumber: 19
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Button"], {
+                                            onClick: deleteImage,
+                                            variant: "ghost",
+                                            className: "absolute top-0 right-0 p-1 text-white rounded-full hover:bg-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none",
+                                            "aria-label": "Delete Image",
+                                            children: "X"
+                                        }, void 0, false, {
+                                            fileName: "[project]/src/app/upload/page.tsx",
+                                            lineNumber: 151,
+                                            columnNumber: 19
+                                        }, this)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "[project]/src/app/upload/page.tsx",
+                                    lineNumber: 149,
+                                    columnNumber: 15
+                                }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 118,
-                                columnNumber: 13
+                                lineNumber: 148,
+                                columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 110,
+                        lineNumber: 139,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Button"], {
@@ -597,13 +609,13 @@ function UploadPage() {
                         children: chatEnabled ? "Processed" : "Submit Images"
                     }, void 0, false, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 135,
+                        lineNumber: 164,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/upload/page.tsx",
-                lineNumber: 96,
+                lineNumber: 125,
                 columnNumber: 7
             }, this),
             chatEnabled && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$card$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Card"], {
@@ -615,20 +627,20 @@ function UploadPage() {
                                 children: "AI-Powered Chatbot"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 147,
+                                lineNumber: 176,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$card$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["CardDescription"], {
                                 children: "Ask any question about the uploaded images."
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 148,
+                                lineNumber: 177,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 146,
+                        lineNumber: 175,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$card$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["CardContent"], {
@@ -643,7 +655,7 @@ function UploadPage() {
                                         onChange: (e)=>setPrompt(e.target.value)
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/upload/page.tsx",
-                                        lineNumber: 152,
+                                        lineNumber: 181,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Button"], {
@@ -652,13 +664,13 @@ function UploadPage() {
                                         children: "Submit Prompt"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/upload/page.tsx",
-                                        lineNumber: 157,
+                                        lineNumber: 186,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 151,
+                                lineNumber: 180,
                                 columnNumber: 13
                             }, this),
                             response && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -667,24 +679,24 @@ function UploadPage() {
                                     children: response
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/upload/page.tsx",
-                                    lineNumber: 166,
+                                    lineNumber: 195,
                                     columnNumber: 17
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/upload/page.tsx",
-                                lineNumber: 165,
+                                lineNumber: 194,
                                 columnNumber: 15
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/upload/page.tsx",
-                        lineNumber: 150,
+                        lineNumber: 179,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/upload/page.tsx",
-                lineNumber: 145,
+                lineNumber: 174,
                 columnNumber: 9
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -692,17 +704,17 @@ function UploadPage() {
                 children: "Powered by NeuroAccess"
             }, void 0, false, {
                 fileName: "[project]/src/app/upload/page.tsx",
-                lineNumber: 173,
+                lineNumber: 202,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/upload/page.tsx",
-        lineNumber: 95,
+        lineNumber: 124,
         columnNumber: 5
     }, this);
 }
-_s(UploadPage, "+Y1YkFVyQwDoLVkeRdE+0z3Qm7w=", false, function() {
+_s(UploadPage, "pONJDjuU94zdHD+oS7zLhHIMZxM=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$hooks$2f$use$2d$toast$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useToast"],
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"]
