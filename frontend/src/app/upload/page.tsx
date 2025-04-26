@@ -12,7 +12,7 @@ import { Spacer } from '@/components/ui/spacer';
 import logo from '@/assets/images/NeuroAccess_logo.png';
 
 export default function UploadPage() {
-  const [images, setImages] = useState<string[]>([]);
+  const [image, setImage] = useState<string | null>(null);
   const [chatEnabled, setChatEnabled] = useState(false);
   const [prompt, setPrompt] = useState<string>(() => {
     if (typeof localStorage !== 'undefined') {
@@ -30,9 +30,9 @@ export default function UploadPage() {
   const router = useRouter();
 
   useEffect(() => {
-    localStorage.setItem('uploadedImages', JSON.stringify(images));
-  }, [images]);
-
+    localStorage.setItem('uploadedImage', JSON.stringify(image));
+  }, [image]);
+  
   useEffect(() => {
     localStorage.setItem('promptText', prompt);
   }, [prompt]);
@@ -46,24 +46,19 @@ export default function UploadPage() {
       return;
     }
 
-    const files: FileList = event.target.files;
-    const newImages: string[] = [];
+    const file = event.target.files[0];
+    if (!file) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          newImages.push(e.target.result.toString());
-          if (newImages.length === files.length) {
-            setImages((prevImages) => [...prevImages, ...newImages]);
-          }
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        setImage(e.target.result.toString());
+      }
+    };
+    reader.readAsDataURL(file);
   }, []);
+
+
 
   const handleSubmit = async () => {
     if (images.length === 0) {
@@ -84,13 +79,10 @@ export default function UploadPage() {
     setResponse(newResponse);
   };
 
-  const deleteImage = (index: number) => {
-    setImages((prevImages) => {
-        const newImages = [...prevImages];
-        newImages.splice(index, 1);
-        return newImages;
-    });
-};
+  const deleteImage = () => {
+    setImage(null);
+  };
+
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
       <Tabs defaultValue="upload" className="w-full max-w-2xl mb-8">
@@ -110,26 +102,26 @@ export default function UploadPage() {
           <div className="mb-8">
             <Input
               type="file"
-              multiple
+              
               accept="image/*"
               onChange={handleImageUpload}
               className="mb-4"
             />
-            <div className="flex flex-wrap gap-4">
-              {images.map((image, index) => (
-                <div key={index} className="relative">
-                    <img src={image} alt={`Uploaded Image ${index + 1}`} className="w-32 h-32 object-cover rounded-md shadow-md" />
-                    <Button
-                      onClick={() => deleteImage(index)}
-                      variant="ghost"
-                      className="absolute top-0 right-0 p-1 text-white rounded-full hover:bg-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
-                      aria-label="Delete Image"
-                    >
-                      X
-                    </Button>
-                </div>
-              ))}
-            </div>
+          {image && (
+          <div className="flex flex-wrap gap-4">
+              <div className="relative">
+                  <img src={image} alt="Uploaded Image" className="w-32 h-32 object-cover rounded-md shadow-md" />
+                  <Button
+                    onClick={deleteImage}
+                    variant="ghost"
+                    className="absolute top-0 right-0 p-1 text-white rounded-full hover:bg-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                    aria-label="Delete Image"
+                  >
+                    X
+                  </Button>
+              </div>
+          </div>
+          )}
           </div>
 
           <Button
