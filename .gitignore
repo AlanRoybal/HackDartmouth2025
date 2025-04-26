@@ -1,4 +1,6 @@
 .env
 .env.local
 venv/
-__pycache__/
+__pycache__/frontend/node_modules/@next/swc-linux-x64-musl/next-swc.linux-x64-musl.node
+frontend/node_modules/@next/swc-linux-x64-gnu/next-swc.linux-x64-gnu.node
+node_modules/
