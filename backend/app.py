@@ -11,6 +11,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 import shutil
 from werkzeug.utils import secure_filename
+from operator import itemgetter
 
 UPLOAD_FOLDER = '/tmp/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -139,6 +140,47 @@ def process_mri_scan(image_path, model):
     except Exception as e:
         return {"error": f"Error processing {Path(image_path).name}: {str(e)}"}
 
+def get_latest_analysis():
+    try:
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
+            aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
+            region_name=os.environ['AWS_REGION']
+        )
+        bucket_name = os.environ['S3_BUCKET_NAME']
+
+        # List all objects in the saved/ prefix
+        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix='saved/')
+        if 'Contents' not in objects:
+            return None
+
+        # Filter for context files and sort by last modified
+        context_files = [obj for obj in objects['Contents'] 
+                        if 'context_' in obj['Key']]
+        if not context_files:
+            return None
+
+        latest_context = max(context_files, key=itemgetter('LastModified'))
+        
+        # Get the corresponding MRI file
+        timestamp = latest_context['Key'].split('context_')[1].split('.json')[0]
+        mri_key = f"saved/{timestamp}/mri_{timestamp}.jpg"
+
+        # Get the context JSON content
+        context_response = s3.get_object(Bucket=bucket_name, Key=latest_context['Key'])
+        context_data = json.loads(context_response['Body'].read().decode('utf-8'))
+
+        return {
+            "context": context_data,
+            "mri_url": f"https://{bucket_name}.s3.amazonaws.com/{mri_key}",
+            "timestamp": timestamp
+        }
+
+    except Exception as e:
+        print(f"Error fetching latest analysis: {e}")
+        return None
+
 # Set up the model globally
 generation_config = {
     "temperature": 0.4,
@@ -182,6 +224,38 @@ def analyze_mri():
             return jsonify({"error": str(e)}), 500
 
     return jsonify({"error": "Failed to process file"}), 400
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.json
+    if not data or 'prompt' not in data:
+        return jsonify({"error": "No prompt provided"}), 400
+
+    try:
+        # Get latest analysis context
+        analysis = get_latest_analysis()
+        if not analysis:
+            return jsonify({"error": "No analysis context found"}), 404
+
+        context = analysis['context']
+        
+        # Construct prompt with context
+        system_prompt = f"""You are a medical AI assistant. Use the following analysis context and also infer from it to answer questions:
+        
+        {json.dumps(context, indent=2)}
+        
+        User Question: {data['prompt']}
+
+        Make the answers slightly detailed but not too verbose. Get rid of any markdown formatting and code blocks.
+        """
+
+        chat = model.start_chat()
+        response = chat.send_message(system_prompt)
+
+        return jsonify({"response": response.text})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

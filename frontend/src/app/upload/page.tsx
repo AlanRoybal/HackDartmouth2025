@@ -112,8 +112,44 @@ export default function UploadPage() {
   };
 
   const handleChatSubmit = async () => {
-    const newResponse = `Response to prompt: ${prompt}`;
-    setResponse(newResponse);
+    if (!prompt.trim()) {
+      toast({
+        title: "Empty prompt",
+        description: "Please enter a question to ask the chatbot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setResponse(data.response);
+      
+    } catch (error) {
+      console.error('Chat error:', error);
+      toast({
+        title: "Error getting response",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   const deleteImage = () => {
