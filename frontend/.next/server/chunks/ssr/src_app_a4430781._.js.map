@@ -2,5 +2,5 @@
   "version": 3,
   "sources": [],
   "sections": [
-    {"offset": {"line": 12, "column": 0}, "map": {"version":3,"sources":["file:///home/advaith/Dev/HackDartmouth2025/frontend/src/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 32, height: 22 }\n"],"names":[],"mappings":";;;AAAA;;uCACe;IAAE,KAAA,8GAAA,CAAA,UAAG;IAAE,OAAO;IAAI,QAAQ;AAAG","debugId":null}}]
+    {"offset": {"line": 12, "column": 0}, "map": {"version":3,"sources":["file://D%3A/Projects/HackDartmouth2025/frontend/src/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 32, height: 22 }\n"],"names":[],"mappings":";;;AAAA;;uCACe;IAAE,KAAA,8GAAA,CAAA,UAAG;IAAE,OAAO;IAAI,QAAQ;AAAG","debugId":null}}]
 }

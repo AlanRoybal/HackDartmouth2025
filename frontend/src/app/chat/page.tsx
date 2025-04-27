@@ -1,13 +1,99 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Spacer } from '@/components/ui/spacer';
+import { Spacer } from "@/components/ui/spacer";
+
+// New component for the DICOM viewer button
+const DicomViewerButton = () => {
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [status, setStatus] = useState("");
+  const { toast } = useToast();
+
+  const launchViewer = async () => {
+    console.log("Launching viewer???");
+    setIsLaunching(true);
+    setStatus("Launching DICOM Viewer...");
+
+    console.log("Launching viewer...");
+    try {
+      const response = await fetch("http://localhost:5000/run-viewer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scanDir: "scan" }),
+      });
+
+      console.log(response);
+
+      console.log("Launching viewer!!!");
+      const data = await response.json();
+
+      if (data.success) {
+        setStatus("DICOM Viewer launched successfully!");
+        toast({
+          title: "Viewer Launched",
+          description: "Check your desktop for the application window.",
+        });
+      } else {
+        setStatus(`Error: ${data.error || "Unknown error"}`);
+        toast({
+          title: "Launch Error",
+          description: data.error || "Failed to launch the DICOM viewer",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      let errorMessage = "Unknown error occurred";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error && typeof error === "object" && "message" in error) {
+        errorMessage = String(error.message);
+      }
+
+      setStatus(`Failed to communicate with server: ${errorMessage}`);
+      toast({
+        title: "Connection Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      console.error(error);
+    } finally {
+      // Re-enable the button after a delay
+      setTimeout(() => {
+        setIsLaunching(false);
+      }, 2000);
+    }
+  };
+
+  return (
+    <div className="w-full flex flex-col items-center gap-2 mb-4">
+      <Button
+        onClick={launchViewer}
+        disabled={isLaunching}
+        className="bg-black hover:bg-gray-800 text-white"
+      >
+        {isLaunching ? "Launching..." : "Launch 3D DICOM Viewer"}
+      </Button>
+      {status && <p className="text-sm text-gray-600">{status}</p>}
+    </div>
+  );
+};
 
 export default function ChatPage() {
   const [prompt, setPrompt] = useState<string>("");
@@ -18,21 +104,23 @@ export default function ChatPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const selectedHistoryItem = localStorage.getItem('selectedHistoryItem');
+    const selectedHistoryItem = localStorage.getItem("selectedHistoryItem");
     if (selectedHistoryItem) {
       const parsed = JSON.parse(selectedHistoryItem);
       setMriUrl(parsed.mri_url); // use the saved MRI URL from history
       setInitialContext(parsed); // also store the entire item if needed
     } else {
       // fallback if user uploaded new image instead of coming from history
-      const analysisResult = localStorage.getItem('analysisResult');
+      const analysisResult = localStorage.getItem("analysisResult");
       if (analysisResult) {
         const parsed = JSON.parse(analysisResult);
-        setMriUrl(`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${parsed.image_file}`);
+        setMriUrl(
+          `https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${parsed.image_file}`
+        );
         setInitialContext(parsed);
       }
     }
-  }, []);  
+  }, []);
 
   const handleChatSubmit = async () => {
     if (!prompt.trim()) {
@@ -45,10 +133,10 @@ export default function ChatPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/chat', {
-        method: 'POST',
+      const response = await fetch("http://localhost:5000/chat", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ prompt: prompt.trim() }),
       });
@@ -64,12 +152,12 @@ export default function ChatPage() {
       }
 
       setResponse(data.response);
-
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error("Chat error:", error);
       toast({
         title: "Error getting response",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive",
       });
     }
@@ -77,24 +165,26 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
-      <Tabs defaultValue="chat"> {}
+      <Tabs defaultValue="chat">
+        {" "}
+        {}
         <TabsList>
-          <TabsTrigger 
-            value="upload" 
-            onClick={() => router.push('/')}
+          <TabsTrigger
+            value="upload"
+            onClick={() => router.push("/")}
             className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
           >
             Upload Images
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="chat"
             className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
           >
             Query
           </TabsTrigger>
-          <TabsTrigger 
-            value="history" 
-            onClick={() => router.push('/history')}
+          <TabsTrigger
+            value="history"
+            onClick={() => router.push("/history")}
             className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
           >
             History
@@ -107,13 +197,16 @@ export default function ChatPage() {
 
       {mriUrl && (
         <div className="flex justify-center w-full mb-8">
-          <img 
-            src={mriUrl} 
-            alt="MRI Scan" 
+          <img
+            src={mriUrl}
+            alt="MRI Scan"
             className="w-60 h-60 object-cover rounded-lg shadow-lg"
           />
         </div>
       )}
+
+      {/* Add the DICOM Viewer button here */}
+      <DicomViewerButton />
 
       <Card className="w-full max-w-2xl">
         <CardHeader>
@@ -126,9 +219,7 @@ export default function ChatPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <Button onClick={handleChatSubmit}>
-            Submit Prompt
-          </Button>
+          <Button onClick={handleChatSubmit}>Submit Prompt</Button>
           {response && (
             <div className="rounded-md border p-4 bg-white text-black">
               <p>{response}</p>
@@ -137,7 +228,9 @@ export default function ChatPage() {
         </CardContent>
       </Card>
 
-      <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
+      <p className="text-xs absolute bottom-2 right-2">
+        Powered by NeuroAccess
+      </p>
     </div>
   );
 }

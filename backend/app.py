@@ -12,6 +12,9 @@ from botocore.exceptions import NoCredentialsError
 import shutil
 from werkzeug.utils import secure_filename
 from operator import itemgetter
+import subprocess
+import sys
+from threading import Thread
 
 UPLOAD_FOLDER = '/tmp/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -332,6 +335,39 @@ def history():
         print(f"Error fetching history: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/run-viewer', methods=['POST'])
+def run_viewer():
+    print("hello")
+    data = request.json
+    scan_dir = data.get('scanDir', 'scan')  # Default to 'scan' if not provided
+    
+    # Convert to absolute path if it's a relative path
+    if not os.path.isabs(scan_dir):
+        # Define your scans directory relative to your Flask app
+        scan_dir = os.path.join(os.path.dirname(__file__), 'scans', scan_dir)
+    
+    def run_script_async():
+        try:
+            # Make sure the script path is correct
+            script_path = os.path.join(os.path.dirname(__file__), 'viewer.py')
+            # 🔥 FIX HERE: use sys.executable instead of "python"
+            cmd = [sys.executable, script_path, scan_dir]
+            print(f"Executing command: {' '.join(cmd)}")
+            process = subprocess.Popen(cmd)
+            # Not waiting for the process to complete
+        except Exception as e:
+            print(f"Error running viewer: {str(e)}")
+    
+    # Check if directory exists
+    if not os.path.isdir(scan_dir):
+        return jsonify({"success": False, "error": f"Scan directory not found: {scan_dir}"}), 404
+    
+    # Run in a separate thread
+    thread = Thread(target=run_script_async)
+    thread.daemon = True  # This ensures the thread will die when the main process exits
+    thread.start()
+    
+    return jsonify({"success": True, "message": f"Viewer launched for scan directory: {scan_dir}"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
