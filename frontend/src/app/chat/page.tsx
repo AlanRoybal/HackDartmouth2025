@@ -15,6 +15,86 @@ import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spacer } from "@/components/ui/spacer";
 
+// New component for the DICOM viewer button
+const DicomViewerButton = () => {
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [status, setStatus] = useState("");
+  const { toast } = useToast();
+
+  const launchViewer = async () => {
+    console.log("Launching viewer???");
+    setIsLaunching(true);
+    setStatus("Launching DICOM Viewer...");
+
+    console.log("Launching viewer...");
+    try {
+      const response = await fetch("http://localhost:5000/run-viewer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scanDir: "scan" }),
+      });
+
+      console.log(response);
+
+      console.log("Launching viewer!!!");
+      const data = await response.json();
+
+      if (data.success) {
+        setStatus("DICOM Viewer launched successfully!");
+        toast({
+          title: "Viewer Launched",
+          description: "Check your desktop for the application window.",
+        });
+      } else {
+        setStatus(`Error: ${data.error || "Unknown error"}`);
+        toast({
+          title: "Launch Error",
+          description: data.error || "Failed to launch the DICOM viewer",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      let errorMessage = "Unknown error occurred";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error && typeof error === "object" && "message" in error) {
+        errorMessage = String(error.message);
+      }
+
+      setStatus(`Failed to communicate with server: ${errorMessage}`);
+      toast({
+        title: "Connection Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      console.error(error);
+    } finally {
+      // Re-enable the button after a delay
+      setTimeout(() => {
+        setIsLaunching(false);
+      }, 2000);
+    }
+  };
+
+  return (
+    <div className="w-full flex flex-col items-center gap-2 mb-4">
+      <Button
+        onClick={launchViewer}
+        disabled={isLaunching}
+        className="bg-black hover:bg-gray-800 text-white"
+      >
+        {isLaunching ? "Launching..." : "Launch 3D DICOM Viewer"}
+      </Button>
+      {status && <p className="text-sm text-gray-600">{status}</p>}
+    </div>
+  );
+};
+
 export default function ChatPage() {
   const [prompt, setPrompt] = useState<string>("");
   const [response, setResponse] = useState<string>("");
@@ -125,6 +205,8 @@ export default function ChatPage() {
           <span className="font-semibold">History</span>.
         </p>
       )}
+
+      <DicomViewerButton />
 
       {/* -------------------------- Chat card ------------------------------------------ */}
       <Card className="w-full max-w-2xl">
