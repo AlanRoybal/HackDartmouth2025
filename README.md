@@ -1,5 +1,4 @@
 # NeuroAccess – AI‑Powered Neuro‑Oncology Assistant  
-<sup><sub>Winner – **HackDartmouth 2025: Healthcare Track**</sub></sup>
 
 <p align="center">
   <img width="720" alt="NeuroAccess Landing" src="docs/images/landing.png" />
@@ -64,39 +63,6 @@ User ─▶ Next.js ──▶ Flask API ──▶ Gemini Vision
 
 ---
 
-## Running Locally
-
-```bash
-# 1 Clone
-$ git clone https://github.com/your‑org/neuroaccess.git && cd neuroaccess
-
-# 2 Backend
-$ cd backend && python -m venv .venv && source .venv/bin/activate
-$ pip install -r requirements.txt
-$ cp .env.local.example .env.local  # add your keys
-$ python app.py            # http://localhost:5000
-
-# 3 Frontend
-$ cd ../frontend && npm install
-$ npm run dev -p 3000       # http://localhost:3000
-```
-
----
-
-## Folder Structure
-
-```
-backend/
-  app.py           # Flask server
-  requirements.txt
-frontend/
-  src/app/         # Next.js pages
-  tailwind.config.ts
-README.md
-```
-
----
-
 ## API Reference
 
 | Verb | Endpoint | Payload | Returns |
@@ -118,4 +84,4 @@ README.md
 ## Check Us Out
 
 - Demo Video ▶ **coming soon**
-- Devpost 📝 **coming soon**
+- Devpost Link: **coming soon**
