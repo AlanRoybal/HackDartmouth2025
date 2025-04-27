@@ -132,11 +132,13 @@ def process_mri_scan(image_path: Path):
     chat = model.start_chat()
     analysis_prompt = """
     Please analyze this MRI brain scan image and provide:
-      1. Tumor detection (type & XYZ coords, if any)
-      2. Gray-matter loss (regions & severity, if any)
-      3. Other abnormalities
-      4. Recommended follow-up actions
-    Output *only* JSON.
+
+        1. Detection of any visible brain tumors (location, size, characteristics) and what type they are (glioma, meningioma, pituitary). The image may not have a tumor at all. If there is a tumor, give me the predicted X Y Z coordinates of where it is located. The dimensions of the scan are x=401, y=200, z=300.
+        2. Assessment of gray matter loss or abnormalities (regions affected, severity). There may not be any gray matter loss at all.
+        3. Other notable abnormalities (if present)
+        4. Recommended follow-up actions based on findings
+
+        Be very brief in analysis but accurate. Output your analysis as a JSON object only, without extra text or code block formatting.
     """
     raw = chat.send_message([img_file, analysis_prompt]).text.strip()
     clean = re.sub(r"^```(?:json)?\n|\n```$", "", raw)
