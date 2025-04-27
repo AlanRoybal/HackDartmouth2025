@@ -18,13 +18,21 @@ export default function ChatPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const analysisResult = localStorage.getItem('analysisResult');
-    if (analysisResult) {
-      const parsed = JSON.parse(analysisResult);
-      setMriUrl(`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${parsed.image_file}`);
-      setInitialContext(parsed);
+    const selectedHistoryItem = localStorage.getItem('selectedHistoryItem');
+    if (selectedHistoryItem) {
+      const parsed = JSON.parse(selectedHistoryItem);
+      setMriUrl(parsed.mri_url); // use the saved MRI URL from history
+      setInitialContext(parsed); // also store the entire item if needed
+    } else {
+      // fallback if user uploaded new image instead of coming from history
+      const analysisResult = localStorage.getItem('analysisResult');
+      if (analysisResult) {
+        const parsed = JSON.parse(analysisResult);
+        setMriUrl(`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${parsed.image_file}`);
+        setInitialContext(parsed);
+      }
     }
-  }, []);
+  }, []);  
 
   const handleChatSubmit = async () => {
     if (!prompt.trim()) {
@@ -96,7 +104,16 @@ export default function ChatPage() {
 
       <Spacer axis="vertical" size={50} />
       <h1 className="text-4xl font-bold mb-4">MRI Analysis</h1>
-      <Spacer axis="vertical" size={25} />
+
+      {mriUrl && (
+        <div className="flex justify-center w-full mb-8">
+          <img 
+            src={mriUrl} 
+            alt="MRI Scan" 
+            className="w-60 h-60 object-cover rounded-lg shadow-lg"
+          />
+        </div>
+      )}
 
       <Card className="w-full max-w-2xl">
         <CardHeader>

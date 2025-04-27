@@ -26,10 +26,18 @@ export default function HistoryPage() {
     fetchHistory();
   }, []);
 
+  const handleHistoryClick = (item: any) => {
+    // Save the clicked MRI image and its metadata to localStorage
+    localStorage.setItem('selectedHistoryItem', JSON.stringify(item));
+
+    // Redirect to /chat page
+    router.push('/chat');
+  };
+
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
-      <Tabs defaultValue="history">
-        <TabsList>
+    <div className="flex flex-col items-center justify min-h-screen bg-background text-foreground p-8">
+      <Tabs defaultValue="history" className="max-w-xl">
+        <TabsList className="flex justify-center">
           <TabsTrigger value="upload" onClick={() => router.push('/')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
             Upload Images
           </TabsTrigger>
@@ -54,7 +62,11 @@ export default function HistoryPage() {
       ) : (
         <div className="flex flex-col gap-8 w-full max-w-4xl">
           {historyItems.map((item, idx) => (
-            <div key={idx} className="border p-4 rounded-lg shadow-md bg-background text-foreground">
+            <div 
+              key={idx} 
+              className="border p-4 rounded-lg shadow-md bg-background text-foreground hover:bg-gray-100 cursor-pointer transition"
+              onClick={() => handleHistoryClick(item)}
+            >
               <div className="flex flex-col md:flex-row gap-6">
 
                 {/* Left: fixed-size image container */}
@@ -67,7 +79,7 @@ export default function HistoryPage() {
                 </div>
 
                 {/* Right: flexible text */}
-                <div className="flex flex-col justify-center flex-1">
+                <div className="flex flex-col justify-center flex-1 transition-colors hover:text-gray-500">
                   <p className="text-lg font-semibold mb-2">Timestamp: {item.timestamp}</p>
                   <p className="text-md">{item.summary}</p>
                 </div>
@@ -77,6 +89,7 @@ export default function HistoryPage() {
           ))}
         </div>
       )}
+
       <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
     </div>
   );
