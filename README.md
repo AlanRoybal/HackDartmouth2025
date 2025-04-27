@@ -1,14 +1,14 @@
-# NeuroAccess – AI‑Powered Neuro‑Oncology Assistant  
+# Neurolytics – AI‑Powered Neuro‑Oncology Assistant  
 
 <p align="center">
-  <img width="720" alt="NeuroAccess Landing" src="docs/images/landing.png" />
+  <img width="720" alt="Neurolytics Landing" src="docs/images/landing.png" />
 </p>
 
 ---
 
 ## Overview
 
-More than **50 million** people worldwide need MRI interpretation every year, yet neuroradiologists are scarce and expensive. **NeuroAccess** lets anyone upload a brain MRI, receive an AI‑driven diagnostic summary, and ask follow‑up questions in natural language – all inside a single web page.
+More than **50 million** people worldwide need MRI interpretation every year, yet neuroradiologists are scarce and expensive. **Neurolytics** lets anyone upload a brain MRI, receive an AI‑driven diagnostic summary, and ask follow‑up questions in natural language – all inside a single web page.
 
 We combine **Next.js**, **Google Gemini Vision**, and **AWS S3** to deliver expert‑level insights in seconds, freeing clinicians to focus on critical cases and empowering students to learn neuro‑oncology hands‑on.
 
