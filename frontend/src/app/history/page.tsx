@@ -56,21 +56,27 @@ export default function HistoryPage() {
           {historyItems.map((item, idx) => (
             <div key={idx} className="border p-4 rounded-lg shadow-md bg-background text-foreground">
               <div className="flex flex-col md:flex-row gap-6">
-                <img 
-                  src={item.mri_url} 
-                  alt="MRI" 
-                  className="w-full md:w-1/2 rounded-md object-cover"
-                />
-                <div className="flex flex-col justify-center w-full">
+
+                {/* Left: fixed-size image container */}
+                <div className="w-40 h-40 flex-shrink-0">
+                  <img 
+                    src={item.mri_url} 
+                    alt="MRI" 
+                    className="w-full h-full object-cover rounded-md shadow-md"
+                  />
+                </div>
+
+                {/* Right: flexible text */}
+                <div className="flex flex-col justify-center flex-1">
                   <p className="text-lg font-semibold mb-2">Timestamp: {item.timestamp}</p>
                   <p className="text-md">{item.summary}</p>
                 </div>
+
               </div>
             </div>
           ))}
         </div>
       )}
-
       <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
     </div>
   );

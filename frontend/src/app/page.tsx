@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import logo from '@/assets/images/NeuroAccess_logo.png';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Spacer } from '@/components/ui/spacer';
 import { CenteredDivider } from "@/components/ui/divider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function Home() {
   const router = useRouter();
@@ -95,9 +95,23 @@ export default function Home() {
 
   // output
   return (
-    <div
-      className="flex flex-col items-center justify-center h-screen bg-background text-foreground cursor-pointer"
-    >
+    <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
+      <Tabs defaultValue="upload">
+        <TabsList>
+          <TabsTrigger value="upload" onClick={() => router.push('/')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
+            Upload Images
+          </TabsTrigger>
+          <TabsTrigger value="chat" onClick={() => router.push('/chat')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
+            Query
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
+            History
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <Spacer axis="vertical" size={50} />
+
       <img
         src={logo.src}
         alt="Logo"
