@@ -27,10 +27,8 @@ export default function HistoryPage() {
   }, []);
 
   const handleHistoryClick = (item: any) => {
-    // Save the clicked MRI image and its metadata to localStorage
     localStorage.setItem('selectedHistoryItem', JSON.stringify(item));
-
-    // Redirect to /chat page
+    localStorage.setItem('currentTimestamp', item.timestamp);           // ④
     router.push('/chat');
   };
 
@@ -90,7 +88,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
+      <p className="text-xs fixed bottom-2 right-2">Powered by Neurolytics</p>
     </div>
   );
 }

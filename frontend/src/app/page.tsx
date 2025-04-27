@@ -73,11 +73,12 @@ export default function Home() {
         if (analysisResult.error) {
           throw new Error(analysisResult.error);
         }
-    
-        // Save result to localStorage
+
         localStorage.setItem('analysisResult', JSON.stringify(analysisResult));
-        
-        // Now go to /chat
+        localStorage.setItem('currentTimestamp', analysisResult.timestamp);
+
+        localStorage.removeItem('selectedHistoryItem'); 
+
         router.push('/chat');
     
       } catch (error) {
@@ -98,13 +99,13 @@ export default function Home() {
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
       <Tabs defaultValue="upload">
         <TabsList>
-          <TabsTrigger value="upload" onClick={() => router.push('/')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
+          <TabsTrigger value="upload" className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
             Upload Images
           </TabsTrigger>
           <TabsTrigger value="chat" onClick={() => router.push('/chat')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
             Query
           </TabsTrigger>
-          <TabsTrigger value="history" className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
+          <TabsTrigger value="history" onClick={() => router.push('/history')} className="text-black data-[state=active]:bg-black data-[state=active]:text-white">
             History
           </TabsTrigger>
         </TabsList>
@@ -118,7 +119,7 @@ export default function Home() {
         className="mb-6"
         style={{ width: '180px', height: '130px' }}
       />
-      <h1 className="text-4xl font-bold mb-4">NeuroAccess</h1>
+      <h1 className="text-4xl font-bold mb-4">Neurolytics</h1>
       <p className="text-lg mb-8">Neuro-oncology unlocked for anyone, everyone.</p>
 
       <Tabs defaultValue="upload" className="w-full max-w-2xl mb-8">
