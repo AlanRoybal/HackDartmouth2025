@@ -88,7 +88,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <p className="text-xs absolute bottom-2 right-2">Powered by NeuroAccess</p>
+      <p className="text-xs fixed bottom-2 right-2">Powered by Neurolytics</p>
     </div>
   );
 }
