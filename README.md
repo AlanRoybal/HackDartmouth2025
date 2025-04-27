@@ -83,5 +83,5 @@ User ─▶ Next.js ──▶ Flask API ──▶ Gemini Vision
 
 ## Check Us Out
 
-- Demo Video ▶ https://youtu.be/9QKtXmsJvCA
+- Demo Video: https://www.youtube.com/watch?v=qfgPWyvB37M
 - Devpost Link: https://devpost.com/software/neurolytics?ref_content=user-portfolio&ref_feature=in_progress
