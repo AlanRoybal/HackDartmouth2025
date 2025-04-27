@@ -19,13 +19,10 @@ export default function ChatPage() {
   const [prompt, setPrompt] = useState<string>("");
   const [response, setResponse] = useState<string>("");
   const [mriUrl, setMriUrl] = useState<string | null>(null);
-  const [timestamp, setTimestamp] = useState<string | null>(null);   // <- already present
+  const [timestamp, setTimestamp] = useState<string | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
-  /* -------------------------------------------------------------------- */
-  /*  Load MRI image + timestamp from either History click or new upload  */
-  /* -------------------------------------------------------------------- */
   useEffect(() => {
     const histItem = localStorage.getItem("selectedHistoryItem");
     if (histItem) {
@@ -35,17 +32,14 @@ export default function ChatPage() {
       return;
     }
 
-    const res = localStorage.getItem("analysisResult");
-    if (res) {
-      const parsed = JSON.parse(res);
+    const latestUpload = localStorage.getItem("analysisResult");
+    if (latestUpload) {
+      const parsed = JSON.parse(latestUpload);
       setMriUrl(parsed.image_url);
       setTimestamp(parsed.timestamp);
     }
   }, []);
 
-  /* -------------------------------------------------------------------- */
-  /*  NEW handleChatSubmit —> now sends {prompt, timestamp} in the body   */
-  /* -------------------------------------------------------------------- */
   const handleChatSubmit = async () => {
     if (!prompt.trim()) {
       toast({
@@ -57,9 +51,10 @@ export default function ChatPage() {
     }
 
     try {
-      /* ---------- build request body ---------- */
-      const body: Record<string, any> = { prompt: prompt.trim() };
-      if (timestamp) body.timestamp = timestamp;      // ← pass it along
+      const body = {
+        prompt: prompt.trim(),
+        timestamp,
+      };
 
       const res = await fetch("http://localhost:5000/chat", {
         method: "POST",
@@ -67,7 +62,7 @@ export default function ChatPage() {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -84,12 +79,8 @@ export default function ChatPage() {
     }
   };
 
-  /* -------------------------------------------------------------------- */
-  /*  UI (unchanged)                                                      */
-  /* -------------------------------------------------------------------- */
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
-      {/* … Tabs, MRI image, and card markup stay exactly the same … */}
       <Tabs defaultValue="chat">
         <TabsList>
           <TabsTrigger
@@ -118,7 +109,8 @@ export default function ChatPage() {
       <Spacer axis="vertical" size={50} />
       <h1 className="text-4xl font-bold mb-4">MRI Analysis</h1>
 
-      {mriUrl && (
+      {/* -------------------------- MRI preview or placeholder -------------------------- */}
+      {mriUrl ? (
         <div className="flex justify-center w-full mb-8">
           <img
             src={mriUrl}
@@ -126,8 +118,15 @@ export default function ChatPage() {
             className="w-60 h-60 object-cover rounded-lg shadow-lg"
           />
         </div>
+      ) : (
+        <p className="mb-8 italic text-muted-foreground">
+          No image uploaded yet. Go to{" "}
+          <span className="font-semibold">Upload Images</span> or pick one from{" "}
+          <span className="font-semibold">History</span>.
+        </p>
       )}
 
+      {/* -------------------------- Chat card ------------------------------------------ */}
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>AI-Powered Chatbot</CardTitle>

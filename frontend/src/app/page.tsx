@@ -76,6 +76,9 @@ export default function Home() {
 
         localStorage.setItem('analysisResult', JSON.stringify(analysisResult));
         localStorage.setItem('currentTimestamp', analysisResult.timestamp);
+
+        localStorage.removeItem('selectedHistoryItem'); 
+        
         router.push('/chat');
     
       } catch (error) {
