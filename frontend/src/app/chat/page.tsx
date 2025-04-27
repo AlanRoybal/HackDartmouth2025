@@ -98,10 +98,6 @@ export default function ChatPage() {
       <h1 className="text-4xl font-bold mb-4">MRI Analysis</h1>
       <Spacer axis="vertical" size={25} />
 
-      {mriUrl && (
-        <img src={mriUrl} alt="MRI" className="w-full max-w-md rounded-lg shadow-lg mb-6" />
-      )}
-
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>AI-Powered Chatbot</CardTitle>

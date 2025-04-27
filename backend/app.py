@@ -68,7 +68,7 @@ def process_mri_scan(image_path, model):
         wait_for_files_active([image_file])
 
         chat = model.start_chat()
-        prompt = """
+        analysis_prompt = """
         Please analyze this MRI brain scan image and provide:
 
         1. Detection of any visible brain tumors (location, size, characteristics) and what type they are (glioma, meningioma, pituitary). The image may not have a tumor at all. If there is a tumor, give me the predicted X Y Z coordinates of where it is located.
@@ -78,8 +78,7 @@ def process_mri_scan(image_path, model):
 
         Be very brief in analysis but accurate. Output your analysis as a JSON object only, without extra text or code block formatting.
         """
-
-        response = chat.send_message([image_file, prompt])
+        response = chat.send_message([image_file, analysis_prompt])
         raw_text = response.text.strip()
 
         cleaned_text = re.sub(r"^```(?:json)?\n", "", raw_text)
@@ -90,14 +89,12 @@ def process_mri_scan(image_path, model):
 
             # Timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            folder_name = f"saved/{timestamp}/"  # S3 folder
+            folder_name = f"saved/{timestamp}/"
 
-            # Prepare filenames
             json_filename = f"{folder_name}context_{timestamp}.json"
             image_extension = Path(image_path).suffix
             image_filename = f"{folder_name}mri_{timestamp}{image_extension}"
 
-            # Initialize boto3 S3 client
             s3 = boto3.client(
                 's3',
                 aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
@@ -115,7 +112,7 @@ def process_mri_scan(image_path, model):
             )
             print(f"Uploaded {json_filename} to S3.")
 
-            # Upload MRI image
+            # Upload MRI Image
             with open(image_path, 'rb') as image_file_data:
                 s3.put_object(
                     Bucket=bucket_name,
@@ -125,10 +122,30 @@ def process_mri_scan(image_path, model):
                 )
             print(f"Uploaded {image_filename} to S3.")
 
+            # --- Generate and Upload Summary ---
+            chat_summary = model.start_chat()
+            summary_prompt = f"""Summarize this MRI scan analysis into 2-3 sentences.
+            Focus on important findings, any tumors, and major abnormalities.
+            JSON content:
+            {json.dumps(analysis_json, indent=2)}
+            """
+            summary_response = chat_summary.send_message(summary_prompt)
+            summary_text = summary_response.text.strip()
+
+            summary_filename = f"{folder_name}summary_{timestamp}.txt"
+            s3.put_object(
+                Bucket=bucket_name,
+                Key=summary_filename,
+                Body=summary_text,
+                ContentType='text/plain'
+            )
+            print(f"Uploaded {summary_filename} to S3.")
+
             return {
                 "message": "Files uploaded successfully",
                 "json_file": json_filename,
-                "image_file": image_filename
+                "image_file": image_filename,
+                "summary_file": summary_filename
             }
 
         except json.JSONDecodeError:
@@ -136,7 +153,6 @@ def process_mri_scan(image_path, model):
 
     except NoCredentialsError:
         return {"error": "AWS credentials not found."}
-
     except Exception as e:
         return {"error": f"Error processing {Path(image_path).name}: {str(e)}"}
 
@@ -256,6 +272,66 @@ def chat():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/history', methods=['GET'])
+def history():
+    try:
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
+            aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
+            region_name=os.environ['AWS_REGION']
+        )
+        bucket_name = os.environ['S3_BUCKET_NAME']
+
+        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix='saved/')
+        if 'Contents' not in objects:
+            return jsonify([])
+
+        context_files = [obj for obj in objects['Contents'] if 'context_' in obj['Key']]
+        all_files = objects['Contents']
+
+        history_items = []
+
+        for ctx_obj in context_files:
+            timestamp = ctx_obj['Key'].split('context_')[1].split('.json')[0]
+            mri_file = next(
+                (file for file in all_files if f"saved/{timestamp}/mri_{timestamp}" in file['Key']),
+                None
+            )
+            summary_file = next(
+                (file for file in all_files if f"saved/{timestamp}/summary_{timestamp}" in file['Key']),
+                None
+            )
+
+            if not mri_file or not summary_file:
+                continue
+
+            mri_url = f"https://{bucket_name}.s3.amazonaws.com/{mri_file['Key']}"
+
+            # Get the context JSON
+            context_response = s3.get_object(Bucket=bucket_name, Key=ctx_obj['Key'])
+            context_data = json.loads(context_response['Body'].read().decode('utf-8'))
+
+            # Get the pre-uploaded summary
+            summary_response = s3.get_object(Bucket=bucket_name, Key=summary_file['Key'])
+            summary_text = summary_response['Body'].read().decode('utf-8')
+
+            history_items.append({
+                "timestamp": timestamp,
+                "mri_url": mri_url,
+                "context": context_data,
+                "summary": summary_text
+            })
+
+        history_items.sort(key=lambda x: x['timestamp'], reverse=True)
+
+        return jsonify(history_items)
+
+    except Exception as e:
+        print(f"Error fetching history: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
