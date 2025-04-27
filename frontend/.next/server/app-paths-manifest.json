@@ -1,6 +1,6 @@
 {
   "/chat/page": "app/chat/page.js",
-  "/history/page": "app/history/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/loading/page": "app/loading/page.js",
   "/page": "app/page.js"
 }

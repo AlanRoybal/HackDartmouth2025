@@ -206,6 +206,8 @@ export default function ChatPage() {
         </p>
       )}
 
+      <DicomViewerButton />
+
       {/* -------------------------- Chat card ------------------------------------------ */}
       <Card className="w-full max-w-2xl">
         <CardHeader>
