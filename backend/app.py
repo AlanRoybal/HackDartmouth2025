@@ -11,6 +11,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 import shutil
 from werkzeug.utils import secure_filename
+from operator import itemgetter
 
 UPLOAD_FOLDER = '/tmp/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -182,6 +183,130 @@ def analyze_mri():
             return jsonify({"error": str(e)}), 500
 
     return jsonify({"error": "Failed to process file"}), 400
+
+@app.route('/get_history', methods=['GET'])
+def get_history():
+    try:
+        # Initialize boto3 S3 client
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
+            aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
+            region_name=os.environ['AWS_REGION']
+        )
+        bucket_name = os.environ['S3_BUCKET_NAME']
+        
+        # List objects in the saved/ prefix
+        response = s3.list_objects_v2(Bucket=bucket_name, Prefix='saved/')
+        
+        if 'Contents' not in response:
+            return jsonify({"message": "No history found", "items": []})
+        
+        # Group files by timestamp folder
+        folders = {}
+        for item in response['Contents']:
+            key = item['Key']
+            # Skip the saved/ directory itself
+            if key == 'saved/':
+                continue
+                
+            # Extract timestamp folder (e.g., saved/20230101_120000/)
+            folder_path = '/'.join(key.split('/')[:2]) + '/'
+            
+            if folder_path not in folders:
+                folders[folder_path] = {'json': None, 'image': None, 'timestamp': None}
+            
+            # Check if it's JSON or image
+            if key.endswith('.json'):
+                folders[folder_path]['json'] = key
+                # Extract timestamp from filename (context_YYYYMMDD_HHMMSS.json)
+                timestamp_str = key.split('_')[-1].replace('.json', '')
+                folders[folder_path]['timestamp'] = timestamp_str
+            elif any(key.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                folders[folder_path]['image'] = key
+        
+        # Process each folder with both JSON and image
+        history_items = []
+        for folder_data in folders.values():
+            if folder_data['json'] and folder_data['image']:
+                # Get JSON content
+                json_obj = s3.get_object(Bucket=bucket_name, Key=folder_data['json'])
+                json_content = json.loads(json_obj['Body'].read().decode('utf-8'))
+                
+                # Get image URL (generate a presigned URL)
+                image_url = s3.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': bucket_name, 'Key': folder_data['image']},
+                    ExpiresIn=3600  # URL expires in 1 hour
+                )
+                
+                # Get summary using Gemini
+                summary = generate_summary(json_content)
+                
+                # Format timestamp from YYYYMMDD_HHMMSS to human-readable format
+                timestamp_str = folder_data.get('timestamp')
+                if timestamp_str:
+                    try:
+                        # Extract timestamp from the folder name if available
+                        folder_timestamp = folder_data['json'].split('/')[1]
+                        timestamp = datetime.strptime(folder_timestamp, "%Y%m%d_%H%M%S")
+                        formatted_time = timestamp.strftime("%B %d, %Y at %I:%M %p")
+                    except (ValueError, IndexError):
+                        formatted_time = "Unknown date"
+                else:
+                    formatted_time = "Unknown date"
+                
+                history_items.append({
+                    'id': folder_data['json'].split('/')[1],  # Use timestamp as ID
+                    'image_url': image_url,
+                    'summary': summary,
+                    'timestamp': formatted_time,
+                    'json_url': s3.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': bucket_name, 'Key': folder_data['json']},
+                        ExpiresIn=3600
+                    ),
+                    'full_data': json_content
+                })
+        
+        # Sort by timestamp (newest first)
+        history_items.sort(key=itemgetter('id'), reverse=True)
+        
+        return jsonify({
+            "message": f"Found {len(history_items)} history items",
+            "items": history_items
+        })
+        
+    except NoCredentialsError:
+        return jsonify({"error": "AWS credentials not found."}), 401
+    except Exception as e:
+        return jsonify({"error": f"Error fetching history: {str(e)}"}), 500
+
+def generate_summary(analysis_json):
+    """Generate a summarized version of the analysis using Gemini."""
+    try:
+        # Create a prompt for Gemini to summarize the analysis
+        prompt = f"""
+        Summarize this MRI analysis in 2-3 concise sentences highlighting the key findings:
+        {json.dumps(analysis_json)}
+        
+        Be direct and straightforward about any tumors, abnormalities, or other significant findings.
+        If no issues were found, mention that the scan appears normal.
+        """
+        
+        chat = model.start_chat()
+        response = chat.send_message(prompt)
+        summary = response.text.strip()
+        
+        # Ensure we're not returning anything too long
+        if len(summary) > 500:
+            summary = summary[:497] + "..."
+            
+        return summary
+        
+    except Exception as e:
+        print(f"Error generating summary: {str(e)}")
+        return "Unable to generate summary for this analysis."
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,30 @@
+{
+    "tumor_detection": {
+        "present": false,
+        "location": null,
+        "size": null,
+        "characteristics": null,
+        "type": null,
+        "coordinates": null
+    },
+    "gray_matter_assessment": {
+        "loss_present": false,
+        "regions_affected": null,
+        "severity": null
+    },
+    "other_abnormalities": [
+        {
+            "description": "Large right-sided subdural hematoma with significant mass effect, causing midline shift and compression of the ventricles.",
+            "location": "Right cerebral hemisphere, extra-axial"
+        },
+        {
+            "description": "Possible intraparenchymal hemorrhage within the right hemisphere",
+            "location": "Right cerebral hemisphere"
+        }
+    ],
+    "recommended_follow_up": [
+        "Immediate neurosurgical consultation for evaluation and management of the subdural hematoma and intraparenchymal hemorrhage.",
+        "Repeat imaging (CT or MRI) after intervention to assess hematoma evacuation and brain parenchyma.",
+        "Neurological assessment to determine the extent of neurological deficits."
+    ]
+}
