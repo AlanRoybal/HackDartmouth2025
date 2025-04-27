@@ -155,12 +155,20 @@ if __name__ == "__main__":
         default='red',
         help="Color of the center marker (e.g., 'red', 'green', 'blue', '#FF0000')."
     )
+    parser.add_argument(
+        '--tumor-coords',
+        type=float,
+        nargs=3,
+        metavar=('X', 'Y', 'Z'),
+        help="Tumor coordinates (x, y, z) to use as center point"
+    )
 
     args = parser.parse_args()
     dicom_dir = args.dicom_directory
     render_mode = args.render
     sphere_size = args.sphere_size
     sphere_color = args.sphere_color
+    tumor_coords = args.tumor_coords
 
     print(f"Attempting to load scan from: {dicom_dir}")
     print(f"Sorting by: DICOM InstanceNumber (0020, 0013)")
@@ -194,8 +202,13 @@ if __name__ == "__main__":
             # iso_threshold=XXX # Only needed if rendering='iso', better set interactively
         )
 
-        # Calculate the center of the volume
-        z_center, y_center, x_center = np.array(scan_volume.shape) / 2
+        # Calculate the center point - use tumor coordinates if provided, otherwise use volume center
+        if tumor_coords:
+            x_center, y_center, z_center = tumor_coords
+            print(f"Using tumor coordinates as center point: [{z_center:.1f}, {y_center:.1f}, {x_center:.1f}]")
+        else:
+            z_center, y_center, x_center = np.array(scan_volume.shape) / 2
+            print(f"Using volume center as center point: [{z_center:.1f}, {y_center:.1f}, {x_center:.1f}]")
         
         # Create a points layer for the center marker
         points = np.array([[z_center, y_center, x_center]])  # Single point at center
@@ -212,7 +225,7 @@ if __name__ == "__main__":
             symbol='disc'  # Changed from 'sphere' to 'disc' which is valid in napari
         )
         
-        print(f"Added a {sphere_color} marker (size: {sphere_size}) at volume center: [{z_center:.1f}, {y_center:.1f}, {x_center:.1f}]")
+        print(f"Added a {sphere_color} marker (size: {sphere_size}) at center: [{z_center:.1f}, {y_center:.1f}, {x_center:.1f}]")
 
         # Optional: Add a 3D scale bar
         # We can use the Shape layer to create a cross or axes at the center

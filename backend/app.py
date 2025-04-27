@@ -341,6 +341,16 @@ def run_viewer():
     data = request.json
     scan_dir = data.get('scanDir', 'scan')  # Default to 'scan' if not provided
     
+    # Get the latest analysis to get tumor coordinates
+    analysis = get_latest_analysis()
+    if not analysis:
+        return jsonify({"success": False, "error": "No analysis context found"}), 404
+    
+    context = analysis['context']
+    tumor_coords = None
+    if context.get('tumor_detection', {}).get('present', False):
+        tumor_coords = context['tumor_detection']['coordinates']
+    
     # Convert to absolute path if it's a relative path
     if not os.path.isabs(scan_dir):
         # Define your scans directory relative to your Flask app
@@ -350,8 +360,10 @@ def run_viewer():
         try:
             # Make sure the script path is correct
             script_path = os.path.join(os.path.dirname(__file__), 'viewer.py')
-            # 🔥 FIX HERE: use sys.executable instead of "python"
+            # Pass tumor coordinates as additional arguments if they exist
             cmd = [sys.executable, script_path, scan_dir]
+            if tumor_coords:
+                cmd.extend(['--tumor-coords', str(tumor_coords['x']), str(tumor_coords['y']), str(tumor_coords['z'])])
             print(f"Executing command: {' '.join(cmd)}")
             process = subprocess.Popen(cmd)
             # Not waiting for the process to complete
