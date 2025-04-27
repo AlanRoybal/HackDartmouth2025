@@ -8,12 +8,28 @@ export default function HistoryPage() {
   const router = useRouter();
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-8 relative">
-      <Tabs defaultValue="history" className="w-full max-w-2xl mb-8" onValueChange={(value) => {
-        if (value === "upload") router.push('/upload');
-      }}>
+      <Tabs defaultValue="history"> {}
         <TabsList>
-          <TabsTrigger value="history">View History</TabsTrigger>
-          <TabsTrigger value="upload">Upload Images</TabsTrigger>
+          <TabsTrigger 
+            value="upload" 
+            onClick={() => router.push('/')}
+            className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
+          >
+            Upload Images
+          </TabsTrigger>
+          <TabsTrigger 
+            value="chat"
+            onClick={() => router.push('/chat')}
+            className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
+          >
+            Query
+          </TabsTrigger>
+          <TabsTrigger 
+            value="history" 
+            className="text-black data-[state=active]:bg-black data-[state=active]:text-white"
+          >
+            History
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -28,5 +44,3 @@ export default function HistoryPage() {
     </div>
   );
 }
-
-
