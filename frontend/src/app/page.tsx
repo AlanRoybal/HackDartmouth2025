@@ -73,11 +73,9 @@ export default function Home() {
         if (analysisResult.error) {
           throw new Error(analysisResult.error);
         }
-    
-        // Save result to localStorage
+
         localStorage.setItem('analysisResult', JSON.stringify(analysisResult));
-        
-        // Now go to /chat
+        localStorage.setItem('currentTimestamp', analysisResult.timestamp);
         router.push('/chat');
     
       } catch (error) {

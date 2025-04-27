@@ -27,10 +27,8 @@ export default function HistoryPage() {
   }, []);
 
   const handleHistoryClick = (item: any) => {
-    // Save the clicked MRI image and its metadata to localStorage
     localStorage.setItem('selectedHistoryItem', JSON.stringify(item));
-
-    // Redirect to /chat page
+    localStorage.setItem('currentTimestamp', item.timestamp);           // ④
     router.push('/chat');
   };
 

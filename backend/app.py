@@ -1,337 +1,298 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-import time
 from pathlib import Path
-import google.generativeai as genai
-import json
-import re
 from datetime import datetime
-import boto3
-from botocore.exceptions import NoCredentialsError
-import shutil
-from werkzeug.utils import secure_filename
 from operator import itemgetter
+import google.generativeai as genai
+import boto3
+import json
+import os
+import re
+import shutil
+import time
+from werkzeug.utils import secure_filename
+from botocore.exceptions import NoCredentialsError
 
-UPLOAD_FOLDER = '/tmp/uploads'
+# ----------- CONFIG ----------------------------------------------------------
+
+UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
-
 def load_env():
-    """Load environment variables from .env.local"""
-    env_path = Path(__file__).parent.parent / '.env.local'
+    """Populate os.environ from .env.local (simple line-by-line parser)."""
+    env_path = Path(__file__).parent.parent / ".env.local"
     if not env_path.exists():
         raise FileNotFoundError(f"Environment file not found: {env_path}")
 
-    with env_path.open() as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#'):
-                key, value = line.split('=', 1)
-                os.environ[key.strip()] = value.strip().strip('"').strip("'")
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
-# Load environment variables and configure Gemini
-load_env()
+
+load_env()  # must run before we touch env vars
+
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
-def upload_to_gemini(path, mime_type=None):
-    """Uploads the given file to Gemini."""
-    file = genai.upload_file(path, mime_type=mime_type)
-    print(f"Processing: {path}")
-    return file
+S3_BUCKET = os.environ["S3_BUCKET_NAME"]
+AWS_REGION = os.environ["AWS_REGION"]
 
-def wait_for_files_active(files):
-    """Waits for the given files to be active."""
-    print("Waiting for file processing...")
-    for name in (file.name for file in files):
-        file = genai.get_file(name)
-        while file.state.name == "PROCESSING":
-            print(".", end="", flush=True)
-            time.sleep(5)
-            file = genai.get_file(name)
-        if file.state.name != "ACTIVE":
-            raise Exception(f"File {file.name} failed to process")
-    print("...file ready")
-    print()
-
-def process_mri_scan(image_path, model):
-    """Process a single MRI scan and upload results to S3 with timestamp folder."""
-    try:
-        if not Path(image_path).exists():
-            return {"error": f"Image file {image_path} not found."}
-
-        image_file = upload_to_gemini(str(image_path), mime_type="image/jpeg")
-        wait_for_files_active([image_file])
-
-        chat = model.start_chat()
-        analysis_prompt = """
-        Please analyze this MRI brain scan image and provide:
-
-        1. Detection of any visible brain tumors (location, size, characteristics) and what type they are (glioma, meningioma, pituitary). The image may not have a tumor at all. If there is a tumor, give me the predicted X Y Z coordinates of where it is located.
-        2. Assessment of gray matter loss or abnormalities (regions affected, severity). There may not be any gray matter loss at all.
-        3. Other notable abnormalities (if present)
-        4. Recommended follow-up actions based on findings
-
-        Be very brief in analysis but accurate. Output your analysis as a JSON object only, without extra text or code block formatting.
-        """
-        response = chat.send_message([image_file, analysis_prompt])
-        raw_text = response.text.strip()
-
-        cleaned_text = re.sub(r"^```(?:json)?\n", "", raw_text)
-        cleaned_text = re.sub(r"\n```$", "", cleaned_text)
-
-        try:
-            analysis_json = json.loads(cleaned_text)
-
-            # Timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            folder_name = f"saved/{timestamp}/"
-
-            json_filename = f"{folder_name}context_{timestamp}.json"
-            image_extension = Path(image_path).suffix
-            image_filename = f"{folder_name}mri_{timestamp}{image_extension}"
-
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
-                aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
-                region_name=os.environ['AWS_REGION']
-            )
-            bucket_name = os.environ['S3_BUCKET_NAME']
-
-            # Upload JSON
-            s3.put_object(
-                Bucket=bucket_name,
-                Key=json_filename,
-                Body=json.dumps(analysis_json, indent=4),
-                ContentType='application/json'
-            )
-            print(f"Uploaded {json_filename} to S3.")
-
-            # Upload MRI Image
-            with open(image_path, 'rb') as image_file_data:
-                s3.put_object(
-                    Bucket=bucket_name,
-                    Key=image_filename,
-                    Body=image_file_data,
-                    ContentType='image/jpeg'
-                )
-            print(f"Uploaded {image_filename} to S3.")
-
-            # --- Generate and Upload Summary ---
-            chat_summary = model.start_chat()
-            summary_prompt = f"""Summarize this MRI scan analysis into 2-3 sentences.
-            Focus on important findings, any tumors, and major abnormalities.
-            JSON content:
-            {json.dumps(analysis_json, indent=2)}
-            """
-            summary_response = chat_summary.send_message(summary_prompt)
-            summary_text = summary_response.text.strip()
-
-            summary_filename = f"{folder_name}summary_{timestamp}.txt"
-            s3.put_object(
-                Bucket=bucket_name,
-                Key=summary_filename,
-                Body=summary_text,
-                ContentType='text/plain'
-            )
-            print(f"Uploaded {summary_filename} to S3.")
-
-            return {
-                "message": "Files uploaded successfully",
-                "json_file": json_filename,
-                "image_file": image_filename,
-                "summary_file": summary_filename
-            }
-
-        except json.JSONDecodeError:
-            return {"error": "Failed to parse the model's response as JSON.", "raw_response": raw_text}
-
-    except NoCredentialsError:
-        return {"error": "AWS credentials not found."}
-    except Exception as e:
-        return {"error": f"Error processing {Path(image_path).name}: {str(e)}"}
-
-def get_latest_analysis():
-    try:
-        s3 = boto3.client(
-            's3',
-            aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
-            aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
-            region_name=os.environ['AWS_REGION']
-        )
-        bucket_name = os.environ['S3_BUCKET_NAME']
-
-        # List all objects in the saved/ prefix
-        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix='saved/')
-        if 'Contents' not in objects:
-            return None
-
-        # Filter for context files and sort by last modified
-        context_files = [obj for obj in objects['Contents'] 
-                        if 'context_' in obj['Key']]
-        if not context_files:
-            return None
-
-        latest_context = max(context_files, key=itemgetter('LastModified'))
-        
-        # Get the corresponding MRI file
-        timestamp = latest_context['Key'].split('context_')[1].split('.json')[0]
-        mri_key = f"saved/{timestamp}/mri_{timestamp}.jpg"
-
-        # Get the context JSON content
-        context_response = s3.get_object(Bucket=bucket_name, Key=latest_context['Key'])
-        context_data = json.loads(context_response['Body'].read().decode('utf-8'))
-
-        return {
-            "context": context_data,
-            "mri_url": f"https://{bucket_name}.s3.amazonaws.com/{mri_key}",
-            "timestamp": timestamp
-        }
-
-    except Exception as e:
-        print(f"Error fetching latest analysis: {e}")
-        return None
-
-# Set up the model globally
-generation_config = {
-    "temperature": 0.4,
-    "top_p": 0.95,
-    "top_k": 64,
-    "max_output_tokens": 8192,
-}
+generation_config = dict(
+    temperature=0.4,
+    top_p=0.95,
+    top_k=64,
+    max_output_tokens=8192,
+)
 
 model = genai.GenerativeModel(
     model_name="gemini-2.0-flash",
     generation_config=generation_config,
 )
 
-# API endpoints
-@app.route('/analyze_mri', methods=['POST'])
+
+# ----------- FLASK APP -------------------------------------------------------
+
+app = Flask(__name__)
+CORS(app)
+
+
+# ----------- HELPERS ---------------------------------------------------------
+
+def s3_client():
+    return boto3.client(
+        "s3",
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY"],
+        aws_secret_access_key=os.environ["AWS_SECRET_KEY"],
+        region_name=AWS_REGION,
+    )
+
+
+def upload_to_gemini(path, mime_type=None):
+    file = genai.upload_file(path, mime_type=mime_type)
+    print(f"Uploading to Gemini: {path}")
+    return file
+
+
+def wait_for_files_active(files):
+    print("Waiting for Gemini file processing…")
+    for f in files:
+        while (state := genai.get_file(f.name).state.name) == "PROCESSING":
+            print(".", end="", flush=True)
+            time.sleep(5)
+        if state != "ACTIVE":
+            raise RuntimeError(f"File {f.name} failed (state={state})")
+    print(" ready")
+
+
+def get_analysis_by_timestamp(ts: str):
+    """Return context + MRI URL for a given timestamp folder."""
+    cli = s3_client()
+    ctx_key = f"saved/{ts}/context_{ts}.json"
+    mri_key = f"saved/{ts}/mri_{ts}.jpg"
+
+    ctx_obj = cli.get_object(Bucket=S3_BUCKET, Key=ctx_key)
+    context = json.loads(ctx_obj["Body"].read())
+
+    return {
+        "context": context,
+        "mri_url": f"https://{S3_BUCKET}.s3.amazonaws.com/{mri_key}",
+        "timestamp": ts,
+    }
+
+
+def get_latest_analysis():
+    """Fallback when no timestamp is provided."""
+    cli = s3_client()
+    objs = cli.list_objects_v2(Bucket=S3_BUCKET, Prefix="saved/")
+    if "Contents" not in objs:
+        return None
+
+    ctx_files = [o for o in objs["Contents"] if "context_" in o["Key"]]
+    if not ctx_files:
+        return None
+
+    latest_ctx = max(ctx_files, key=itemgetter("LastModified"))
+    ts = latest_ctx["Key"].split("context_")[1].split(".json")[0]
+    return get_analysis_by_timestamp(ts)
+
+
+# ----------- CORE PROCESSING -------------------------------------------------
+
+def process_mri_scan(image_path: Path):
+    """Analyze scan, upload JSON/image/summary. Returns dict to frontend."""
+    if not image_path.exists():
+        return {"error": f"File not found: {image_path}"}
+
+    # ── Upload to Gemini & run analysis ──────────────────────────────────────
+    img_file = upload_to_gemini(str(image_path), mime_type="image/jpeg")
+    wait_for_files_active([img_file])
+
+    chat = model.start_chat()
+    analysis_prompt = """
+    Please analyze this MRI brain scan image and provide:
+      1. Tumor detection (type & XYZ coords, if any)
+      2. Gray-matter loss (regions & severity, if any)
+      3. Other abnormalities
+      4. Recommended follow-up actions
+    Output *only* JSON.
+    """
+    raw = chat.send_message([img_file, analysis_prompt]).text.strip()
+    clean = re.sub(r"^```(?:json)?\n|\n```$", "", raw)
+
+    try:
+        analysis_json = json.loads(clean)
+    except json.JSONDecodeError:
+        return {"error": "Gemini response is not valid JSON", "raw_response": raw}
+
+    # ── Timestamped folder name ─────────────────────────────────────────────
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    folder = f"saved/{ts}/"
+    json_name = f"context_{ts}.json"
+    img_ext = image_path.suffix or ".jpg"
+    img_name = f"mri_{ts}{img_ext}"
+    sum_name = f"summary_{ts}.txt"
+
+    cli = s3_client()
+
+    # JSON
+    cli.put_object(
+        Bucket=S3_BUCKET,
+        Key=folder + json_name,
+        Body=json.dumps(analysis_json, indent=4),
+        ContentType="application/json",
+    )
+
+    # Image
+    with open(image_path, "rb") as f:
+        cli.put_object(
+            Bucket=S3_BUCKET,
+            Key=folder + img_name,
+            Body=f,
+            ContentType="image/jpeg",
+        )
+
+    # Summary
+    chat_sum = model.start_chat()
+    sum_prompt = (
+        "Summarize this analysis (2–3 sentences):\n"
+        + json.dumps(analysis_json, indent=2)
+    )
+    summary = chat_sum.send_message(sum_prompt).text.strip()
+    cli.put_object(
+        Bucket=S3_BUCKET,
+        Key=folder + sum_name,
+        Body=summary,
+        ContentType="text/plain",
+    )
+
+    return {
+        "message": "Files uploaded successfully",
+        "timestamp": ts,
+        "json_file": folder + json_name,
+        "image_file": folder + img_name,
+        "image_url": f"https://{S3_BUCKET}.s3.amazonaws.com/{folder + img_name}",
+        "summary_file": folder + sum_name,
+    }
+
+
+# ----------- ROUTES ----------------------------------------------------------
+
+@app.route("/analyze_mri", methods=["POST"])
 def analyze_mri():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-        
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+    if "file" not in request.files or not request.files["file"].filename:
+        return jsonify({"error": "No file provided"}), 400
 
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
+    file = request.files["file"]
+    filename = secure_filename(file.filename)
+    tmp_path = Path(UPLOAD_FOLDER) / filename
+    file.save(tmp_path)
 
+    try:
+        result = process_mri_scan(tmp_path)
+    finally:
         try:
-            analysis_result = process_mri_scan(filepath, model)
-            
-            # Clean up the temporary file
-            os.remove(filepath)
-            
-            return jsonify(analysis_result)
-            
-        except Exception as e:
-            # Clean up on error
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            return jsonify({"error": str(e)}), 500
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
 
-    return jsonify({"error": "Failed to process file"}), 400
+    status = 200 if "error" not in result else 500
+    return jsonify(result), status
 
-@app.route('/chat', methods=['POST'])
+
+@app.route("/chat", methods=["POST"])
 def chat():
-    data = request.json
-    if not data or 'prompt' not in data:
+    data = request.json or {}
+    prompt = data.get("prompt", "").strip()
+    ts = data.get("timestamp")  # may be None
+
+    if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
 
-    try:
-        # Get latest analysis context
-        analysis = get_latest_analysis()
-        if not analysis:
-            return jsonify({"error": "No analysis context found"}), 404
+    analysis = get_analysis_by_timestamp(ts) if ts else get_latest_analysis()
+    if not analysis:
+        return jsonify({"error": "No analysis context found"}), 404
 
-        context = analysis['context']
-        
-        # Construct prompt with context
-        system_prompt = f"""You are a medical AI assistant. Use the following analysis context and also infer from it to answer questions:
-        
-        {json.dumps(context, indent=2)}
-        
-        User Question: {data['prompt']}
+    context = analysis["context"]
+    system_prompt = (
+        "You are a medical AI assistant.\n"
+        + json.dumps(context, indent=2)
+        + f"\nUser Question: {prompt}\n"
+        "Answer clearly and concisely, no markdown."
+    )
 
-        Make the answers slightly detailed but not too verbose. Get rid of any markdown formatting and code blocks.
-        """
+    resp = model.start_chat().send_message(system_prompt)
+    return jsonify({"response": resp.text})
 
-        chat = model.start_chat()
-        response = chat.send_message(system_prompt)
 
-        return jsonify({"response": response.text})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-@app.route('/history', methods=['GET'])
+@app.route("/history", methods=["GET"])
 def history():
     try:
-        s3 = boto3.client(
-            's3',
-            aws_access_key_id=os.environ['AWS_ACCESS_KEY'],
-            aws_secret_access_key=os.environ['AWS_SECRET_KEY'],
-            region_name=os.environ['AWS_REGION']
-        )
-        bucket_name = os.environ['S3_BUCKET_NAME']
-
-        objects = s3.list_objects_v2(Bucket=bucket_name, Prefix='saved/')
-        if 'Contents' not in objects:
+        cli = s3_client()
+        objs = cli.list_objects_v2(Bucket=S3_BUCKET, Prefix="saved/")
+        if "Contents" not in objs:
             return jsonify([])
 
-        context_files = [obj for obj in objects['Contents'] if 'context_' in obj['Key']]
-        all_files = objects['Contents']
+        ctx_files = [o for o in objs["Contents"] if "context_" in o["Key"]]
+        all_files = objs["Contents"]
 
-        history_items = []
-
-        for ctx_obj in context_files:
-            timestamp = ctx_obj['Key'].split('context_')[1].split('.json')[0]
-            mri_file = next(
-                (file for file in all_files if f"saved/{timestamp}/mri_{timestamp}" in file['Key']),
-                None
+        history = []
+        for ctx in ctx_files:
+            ts = ctx["Key"].split("context_")[1].split(".json")[0]
+            img = next(
+                (f for f in all_files if f"saved/{ts}/mri_{ts}" in f["Key"]), None
             )
-            summary_file = next(
-                (file for file in all_files if f"saved/{timestamp}/summary_{timestamp}" in file['Key']),
-                None
+            summ = next(
+                (f for f in all_files if f"saved/{ts}/summary_{ts}" in f["Key"]), None
             )
-
-            if not mri_file or not summary_file:
+            if not (img and summ):
                 continue
 
-            mri_url = f"https://{bucket_name}.s3.amazonaws.com/{mri_file['Key']}"
+            img_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{img['Key']}"
+            ctx_obj = cli.get_object(Bucket=S3_BUCKET, Key=ctx["Key"])
+            ctx_json = json.loads(ctx_obj["Body"].read())
 
-            # Get the context JSON
-            context_response = s3.get_object(Bucket=bucket_name, Key=ctx_obj['Key'])
-            context_data = json.loads(context_response['Body'].read().decode('utf-8'))
+            summ_obj = cli.get_object(Bucket=S3_BUCKET, Key=summ["Key"])
+            summ_txt = summ_obj["Body"].read().decode()
 
-            # Get the pre-uploaded summary
-            summary_response = s3.get_object(Bucket=bucket_name, Key=summary_file['Key'])
-            summary_text = summary_response['Body'].read().decode('utf-8')
+            history.append(
+                {
+                    "timestamp": ts,
+                    "mri_url": img_url,
+                    "context": ctx_json,
+                    "summary": summ_txt,
+                }
+            )
 
-            history_items.append({
-                "timestamp": timestamp,
-                "mri_url": mri_url,
-                "context": context_data,
-                "summary": summary_text
-            })
-
-        history_items.sort(key=lambda x: x['timestamp'], reverse=True)
-
-        return jsonify(history_items)
-
+        history.sort(key=lambda x: x["timestamp"], reverse=True)
+        return jsonify(history)
     except Exception as e:
-        print(f"Error fetching history: {e}")
+        print("History error:", e)
         return jsonify({"error": str(e)}), 500
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# ----------- MAIN ------------------------------------------------------------
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
