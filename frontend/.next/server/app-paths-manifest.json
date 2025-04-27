@@ -1,6 +1,5 @@
 {
   "/chat/page": "app/chat/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/history/page": "app/history/page.js",
   "/loading/page": "app/loading/page.js",
   "/page": "app/page.js"
